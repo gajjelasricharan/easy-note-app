@@ -1,0 +1,29 @@
+// storage.rules
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Users can only access their own folder
+    match /users/{userId}/{allPaths=**} {
+      // Read: user owns the file OR the file is in a shared note
+      // For simplicity, we allow read if authenticated and it's their folder
+      // In production, you'd check Firestore to verify note sharing
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // Write: only the note owner can upload to their folder
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 50 * 1024 * 1024 // 50MB max
+        && isValidFileType();
+
+      function isValidFileType() {
+        let contentType = request.resource.contentType;
+        return contentType.matches('image/.*')
+          || contentType.matches('video/.*')
+          || contentType.matches('audio/.*')
+          || contentType == 'application/pdf';
+      }
+    }
+  }
+}
